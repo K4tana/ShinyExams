@@ -1,0 +1,121 @@
+---
+title: "Shiny Exam Report"
+output: pdf_document
+params:
+  dataset: NULL
+  items: NULL
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(knitr)
+dataset <- params$dataset
+items <- params$items
+```
+
+```{r}
+# Initialize empty lists to ensure consistent lengths
+item_types <- list()
+variables <- list()
+plot_types <- list()
+fill_columns <- list()
+stat_choices <- list()
+
+# Loop through items and populate lists
+summary_entries <- lapply(items, function(x) {
+  item_types <<- c(item_types, x$type)
+  if (x$type == "Plot") {
+    variables <<- c(variables, x$xcol)
+    plot_types <<- c(plot_types, x$plot_type)
+    fill_columns <<- c(fill_columns, x$fillcol)
+    stat_choices <<- c(stat_choices, NA)
+  } else if (x$type == "Statistics") {
+    variables <<- c(variables, x$stats_var)
+    plot_types <<- c(plot_types, NA)
+    fill_columns <<- c(fill_columns, NA)
+    stat_choices <<- c(stat_choices, paste(x$stats, collapse = ","))
+  }
+})
+
+# Create a summary table
+summary_table <- data.frame(
+  Item_Type = unlist(item_types),
+  Variable = unlist(variables),
+  Plot_Type = unlist(plot_types),
+  Fill_Column = unlist(fill_columns),
+  Statistics = unlist(stat_choices),
+  stringsAsFactors = FALSE
+)
+
+# Render the summary table
+kable(summary_table, caption = "Summary of Selected Items")
+```
+
+```{r, results='asis', echo=FALSE}
+for (item_id in names(items)) {
+  item <- items[[item_id]]
+  
+  # Print item details for plotting and statistics
+  if (!is.null(item$type) && item$type == "Plot") {
+    cat(paste("### Plot:", item$plot_type, "of", item$xcol, "\n"))
+    if (!is.null(item$fillcol) && item$fillcol != "none") {
+      cat(paste(" separated by", item$fillcol, "\n"))
+    }
+    
+    p <- ggplot(dataset, aes_string(x = item$xcol))
+    if (!is.null(item$plot_type) && item$plot_type == "Boxplot") {
+      p <- p + geom_boxplot()
+      if (!is.null(item$fillcol) && item$fillcol != "none") {
+        p <- p + aes_string(fill = item$fillcol)
+      }
+    } else if (!is.null(item$plot_type) && item$plot_type == "Density Plot") {
+      p <- p + geom_density()
+      if (!is.null(item$fillcol) && item$fillcol != "none") {
+        p <- p + facet_wrap(as.formula(paste("~", item$fillcol)))
+      }
+    } else if (!is.null(item$plot_type) && item$plot_type == "Histogram") {
+      p <- p + geom_histogram()
+      if (!is.null(item$fillcol) && item$fillcol != "none") {
+        p <- p + facet_wrap(as.formula(paste("~", item$fillcol)))
+      }
+    }
+    
+    print(p)
+    cat("\n\n")
+  } else if (!is.null(item$type) && item$type == "Statistics") {
+    if (!is.null(item$stats_var) && length(item$stats) > 0) {
+      cat(paste("### Statistics for variable:", item$stats_var, "\n"))
+      
+      stats_to_compute <- item$stats
+      df <- dataset[[item$stats_var]]
+      stats <- list()
+      
+      if ("mean" %in% stats_to_compute) {
+        stats$Mean <- mean(df, na.rm = TRUE)
+      }
+      if ("sd" %in% stats_to_compute) {
+        stats$SD <- sd(df, na.rm = TRUE)
+      }
+      if ("min" %in% stats_to_compute) {
+        stats$Min <- min(df, na.rm = TRUE)
+      }
+      if ("max" %in% stats_to_compute) {
+        stats$Max <- max(df, na.rm = TRUE)
+      }
+      if ("n_observations" %in% stats_to_compute) {
+        stats$N <- sum(!is.na(df))
+      }
+      
+      stats_df <- data.frame(Statistic = names(stats), Value = unlist(stats))
+      kable(stats_df, caption = paste("Statistics for", item$stats_var))
+      cat("\n\n")
+    } else {
+      cat("### Statistics: Invalid selection or no statistics selected\n")
+    }
+  } else {
+    cat("### Invalid item type\n")
+  }
+}
+```
+
