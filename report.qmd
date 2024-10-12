@@ -1,9 +1,13 @@
 ---
 title: "Shiny Exams Report"
-output: pdf_document
-params:
-  df: data
-  wishlist: items
+format: pdf
+execute:
+  echo: false
+  output: false
+  warning: false
+params: 
+  df: NULL
+  wishlist: NULL
 ---
 ```{r Initialization}
 library(tidyverse)
@@ -76,10 +80,10 @@ if("Statistics" %in% whishlist$desire_outcome){
     insert <- if(is.numeric(df[vars[i]])){
       c(
         if("Mean" %in% splitter){
-          df |> select(vars[i]) |> mean(na.rm = TRUE) |> round(digits = 2)
+          df |> select(vars[i]) |> mean(na.rm = TRUE)
           }else{NA},
         if("SD" %in% splitter){
-          df |> select(vars[i]) |> sd(na.rm = TRUE) |> round(digits = 2)
+          df |> select(vars[i]) |> sd(na.rm = TRUE)
           }else{NA},
         if("Min" %in% splitter){
           df |> select(vars[i]) |> min(na.rm = TRUE)
@@ -132,3 +136,6 @@ if(str_detect(wishlist$desire_outcome, "Plot")){
 
 ### About Shiny Exams
 ShinyExams was created by Oliver D. Reithmaier. For feature requests, bug reports or other issues, visit [the Project Github Page](https://github.com/K4tana/ShinyExams). 
+
+
+

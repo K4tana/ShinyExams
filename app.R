@@ -67,8 +67,10 @@ server <- function(input, output, session) {
     df
   })
   
+  #this reactive value caches data once it's updated.
   updated_data <- reactiveVal(NULL)
   
+  #this updates the names in the update data column after the observer realizes the data was updated. 
   observeEvent(data(), {
     df <- data()
     updated_data(df)
@@ -110,7 +112,7 @@ server <- function(input, output, session) {
     })
     
     info_df <- do.call(rbind, info)
-    datatable(data.frame(t(info_df), stringsAsFactors = FALSE), options = list(scrollX = TRUE))
+    datatable(data.frame(info_df, stringsAsFactors = FALSE), options = list(scrollY = "515px",lengthMenu = list(c(-1, 10, 25, 50, 100), c("All", "10", "25", "50", "100"))))
   })
   
   output$column_names_ui <- renderUI({
