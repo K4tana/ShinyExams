@@ -4,8 +4,7 @@ library(shinydashboard)
 library(DT)
 #load data manipulation/plotting libraries
 library(ggplot2)
-library(quarto)
-library(jsonlite)
+library(rmarkdown)
 #-------------------------------------------------------------------------------
 ################################UI CODE#########################################
 #We want Five pages: Start, where the process is described; Data Upload, where you can upload csv files; Plotting, where you can plot data uploaded and select variables to do so; Export, where you can choose what it is you want to export. 
@@ -74,8 +73,10 @@ updatelayout <- tabItem(tabName = "update",
                           h2("Update the Data"),
                           p("On this page, you can change data types of variables, and their respective column names in the data set."))),
                         fluidRow(
-                          box(title = "Change Column Names", uiOutput("column_names_ui"), width = 6, status = "info"),
-                          box(title="Change Data Types", uiOutput("column_types_ui"), width=6, status = "info")
+                          box(title = "Change Column Names", uiOutput("column_names_ui"), width = 3, status = "info"),
+                          box(title="Change Data Types", uiOutput("column_types_ui"), width=3, status = "info"),
+                          column(width = 3),
+                          column(width = 3)
                         ),
                         fluidRow(
                           column(width = 4,
@@ -139,7 +140,11 @@ exportlayout <- tabItem(tabName = "export",
                         )
 
 #Compose the body from the individual layouts
-body <- dashboardBody(tabItems(
+body <- dashboardBody(tags$head(
+  tags$style(
+    HTML(".col-sm-6{padding-left: 0px;}")
+    )),
+  tabItems(
   startlayout,
   uploadlayout,
   updatelayout,
@@ -360,6 +365,7 @@ server <- function(input, output, session){
       }else if(input$desire_outcome=="Statistics"){
         helper <- rbind(c(input$stats_var, NA,NA,paste(input$stats, collapse = ',')))
       }
+    colnames(helper) <- c("Variable", "Plot Type", "Separator Variable", "Exported Statistics")
     items <- rbind(items,helper)
     export_items(items)
   })
@@ -368,9 +374,6 @@ server <- function(input, output, session){
   output$selected_items_ui <- renderDT({
     items <- export_items()
     #This ensures that it doesn't do anything wonky unless there's data in the table.
-    if(length(items==4)){
-      colnames(items) <- c("Variable", "Plot Type", "Separator Variable", "Exported Statistics")
-    }
     datatable(items)
   })
   
@@ -378,13 +381,16 @@ server <- function(input, output, session){
   output$export_pdf <- downloadHandler(
     filename = "ShinyExams-Report.pdf",
     content = function(file) {
-      report_path <- tempfile(fileext = ".qmd")
-      file.copy("report.qmd", report_path, overwrite = TRUE)
+      report_path <- file.path(tempdir(),"report.Rmd")
+      file.copy("report.Rmd", report_path, overwrite = TRUE)
       params <- list(df=updated_data(),
                      wishlist= export_items())
-      quarto_render(input = "report.qmd",
-                    execute_params = params,
-                    output_format= "pdf")
+      rmarkdown::render(report_path,
+                    params = params,
+                    output_format = "pdf_document",
+                    output_file = "ShinyExams-Report.pdf",
+                    envir = new.env(parent = globalenv()))
+      file.copy("ShinyExams-Report.pdf", file)
     }
   )
 }

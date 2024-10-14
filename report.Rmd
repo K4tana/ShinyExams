@@ -1,21 +1,25 @@
 ---
 title: "Shiny Exams Report"
-output: pdf_document
 params:
-  df: data
-  wishlist: items
+  df: NULL
+  wishlist: NULL
 ---
-```{r Initialization}
+```{r Initialization, echo=FALSE, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(patchwork)
+df <- params$df  #extract data frame from list.
+df <- as.data.frame(df)
+wishlist <- params$wishlist
+wishlist <- as.data.frame(wishlist)
 
-df <- params[[1]] |> as.data.frame() #extract data frame from list.
-wishlist <- params[[2]] |> as.data.frame()
+#ensure that DF names are syntactically equivalent.
+colnames(df) <- make.names(colnames(df))
+colnames(wishlist) <- make.names(colnames(wishlist))
+wishlist[wishlist=="none"] <- NA
 
-df[df=="none"] <- NA
 #define the plotter function
-plotter <- function(data=NULL,axis1=NULL,filler=NULL,type=NULL){
-    p <- data |> ggplot(aes(x=axis1))+
+plotter <- function(dat=NULL,axis1=NULL,filler=NULL,type=NULL){
+    p <- dat |> ggplot(aes(x= .data[[{{axis1}}]]))+
       theme(panel.grid.major = element_blank(), 
             panel.background = element_blank(), 
             panel.grid.minor = element_blank(),
@@ -23,25 +27,27 @@ plotter <- function(data=NULL,axis1=NULL,filler=NULL,type=NULL){
             axis.text.x = element_text(size = 12),
             text = element_text(size = 12))
     #add fill
-    if (type == "Boxplot" && !is.na(filler)) {
-      p <- p + aes_string(fill = filler) +
-        scale_fill_manual(values = c("#59B4AB", "#D7B365"))
-    } else if (!is.na(filler)) {
-      p <- p + facet_wrap(as.formula(paste("~", filler)))
-    }
     #add geoms
-    if (type == "Boxplot") {
+    if ({{type}} == "Boxplot") {
       p <- p + geom_boxplot() +
         theme(axis.ticks.y = element_blank(), 
               axis.text.y = element_blank())
-    } else if (type == "Density Plot") {
+    } else if ({{type}} == "Density Plot") {
       p <- p + geom_density()
-    } else if (type == "Histogram") {
+    } else if ({{type}} == "Histogram") {
       p <- p + geom_histogram()
     }
+    if (!is.null({{filler}})) {
+      if({{type}} == "Boxplot"){
+      p <- p + aes(fill = .data[[{{filler}}]]) +
+        scale_fill_manual(values = c("#59B4AB", "#D7B365"))
+    }else{
+      p <- p + facet_wrap(vars({{filler}}))
+    }
+      }
     #add titles
-    title <- ifelse(!is.null(filler),paste0(type," of ", axis1," by ",filler),paste0(type," of ", axis1))
-    p + labs(title = title)
+    title <- ifelse(!is.null(filler),paste0({{type}}," of ", {{axis1}}," by ",{{filler}}),paste0({{type}}," of ", {{axis1}}))
+    p <- p + labs(title = title)
     return(p)
 }
 layouter <- function(rows=NULL){
@@ -52,80 +58,76 @@ layouter <- function(rows=NULL){
 }
 ```
 ## List of Exports
-The following items were selected for export.
-```{r Exportlist}
-print(wishlist)
+The following items were selected for export\n.
+```{r Exportlist, echo=FALSE, warning=FALSE, message=FALSE}
+wishlist
 ```
 
 ## Detailed Exports
 In this section, the dailed reports you chose will be shown.
-```{r Statistics Export Block}
+```{r Statistics Export Block, echo=FALSE, warning=FALSE, message=FALSE}
 #This whole block is conditional on the wishlist table.
-if("Statistics" %in% whishlist$desire_outcome){
-  heading_stats <- "### Selected Variable Statistics\n"
-  heading_stats
-}
-if("Statistics" %in% whishlist$desire_outcome){
+if(sum(is.na(wishlist$Exported.Statistics))!=nrow(wishlist)){
   #Initialize the results table and variables to process
   results <- data.frame()
-  vars <- wishlist[wishlist$desire_outcome=="Statistics", "Variable"]
+  vars <- wishlist[!is.na(wishlist$Exported.Statistics), "Variable"]
   #construct a results vector per variable 
   for(i in 1:length(vars)){
-    splitter <- str_split_1(wishlist[wishlist$desire_outcome=="Statistics","Exported Statistics"][i], ",")
+    splitter <- str_split_1(wishlist[!is.na(wishlist$Exported.Statistics),"Exported.Statistics"][i], ",")
     #construct the vector. No need to iterate over elements of splitter, as we re-construct the data frame later anyways.
-    insert <- if(is.numeric(df[vars[i]])){
-      c(
+    insert <- c(
         if("Mean" %in% splitter){
-          df |> select(vars[i]) |> mean(na.rm = TRUE) |> round(digits = 2)
+          df[vars[i]] |> lapply(function(x){round(mean(x, na.rm = T), digits = 2)})
           }else{NA},
         if("SD" %in% splitter){
-          df |> select(vars[i]) |> sd(na.rm = TRUE) |> round(digits = 2)
+          df[vars[i]] |> lapply(function(x){round(sd(x, na.rm = T), digits = 2)})
           }else{NA},
         if("Min" %in% splitter){
-          df |> select(vars[i]) |> min(na.rm = TRUE)
+          df[vars[i]]|> sapply(min,na.rm = TRUE) 
           }else{NA},
         if("Max" %in% splitter){
-          df |> select(vars[i]) |> max(na.rm = TRUE)
+          df[vars[i]] |> sapply(max,na.rm = TRUE) 
           }else{NA},
         if("N" %in% splitter){
-          df |> na.omit(vars[i]) |> nrow()
-          }else{NA},)
-    }else{
-      c(NA,NA,NA,NA,
-        if("N" %in% splitter){
-          df |> na.omit(vars[i]) |> nrow()
-        }else{
-          NA
-        })
-    }
+          df[vars[i]] |> nrow()
+          }else{NA})
+    insert <- c(vars[i], as.character(insert))
     results <- rbind(results, insert) #bind results to the df as rows.
   }
-  #output colnames
-  colnames(results) <- c("Mean", "Standard Deviation", "Min", "Max", "N")
-  #filter out columns that only contain NAs for visual delight.
-  results <- results |> select_if(function(x) !all(is.na(x)))
   
+  #output colnames
+  colnames(results) <- c("Variable", "Mean", "Standard Deviation", "Min", "Max", "N")
+  #filter out columns that only contain NAs for visual delight.
+  #results <- results |> select_if(function(x) !all(is.na(x)))
+  results[results=="NA"] <- "not.selected"
   #output the table
   results
 }
 ```
-
-```{r Plot Output Block}
-#This whole section is conditional on Plots being in the section.
-if(str_detect(wishlist$desire_outcome, "Plot")){
-  heading_plot <- "### Plot Exports\n"
-  summary_str
-}
-if(str_detect(wishlist$desire_outcome, "Plot")){
+### Plot Exports
+```{r Plot Output Block, echo=FALSE, warning=FALSE, message=FALSE}
+#This section is conditional on Plots being in the section.
+if(sum(is.na(wishlist$Plot.Type))!=nrow(wishlist)){
   plots <- list()
   #construct a df
-  vars <- wishlist[wishlist$desire_outcome=="Plot",1:3]
+  vars <- wishlist[!is.na(wishlist$Plot.Type),1:3]
   #set NAs to zero so that
-  for(i in nrow(vars)){
-    p <- plotter(df, axis1 = vars[i,"Variable"], filler = vars[i,"Separator Variable"], type = vars[i,"Plot Type"])
+  for(i in 1:nrow(vars)){
+    x <- vars[i,"Variable"]
+    t <- vars[i,"Plot.Type"]
+    f <- vars[i,"Separator.Variable"]
+    if(is.na(f)){
+      p <- plotter(dat=df, axis1 = x, type = t)
+    }else{
+      p <- plotter(dat = df,axis1 = x, filler = f, type = t)
+    }
     plots[[i]] <- p
   }
-  wrap_plots(plots,ncol = layouter(nrow(vars)))
+  wrap_plots(plots)
+  #result <- wrap_plots(plots,ncol = layouter(nrow(vars)))
+  #result
+}else{
+  "No Objects were selected to export."
 }
   
 ```
