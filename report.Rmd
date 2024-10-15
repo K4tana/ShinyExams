@@ -38,6 +38,10 @@ plotter <- function(dat=NULL,axis1=NULL,filler=NULL,type=NULL){
             panel.background = element_blank(), 
             panel.grid.minor = element_blank(),
             axis.line = element_line(colour = "black"),)
+<<<<<<< HEAD
+=======
+    #add fill
+>>>>>>> 878c006deacbdb5bd16f89d1e2019ba5b833dd77
     #add geoms
     if ({{type}} == "Boxplot") {
       p <- p + geom_boxplot() +
