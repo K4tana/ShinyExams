@@ -385,12 +385,12 @@ server <- function(input, output, session){
       file.copy("report.Rmd", report_path, overwrite = TRUE)
       params <- list(df=updated_data(),
                      wishlist= export_items())
-      rmarkdown::render(report_path,
+      rendered_report <- rmarkdown::render(report_path,
                     params = params,
                     output_format = "pdf_document",
                     output_file = "ShinyExams-Report.pdf",
                     envir = new.env(parent = globalenv()))
-      file.copy("ShinyExams-Report.pdf", file)
+      file.copy(rendered_report, file)
     }
   )
 }
