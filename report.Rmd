@@ -1,5 +1,6 @@
 ---
 title: "Shiny Exams Report"
+output: pdf_document
 params:
   df: NULL
   wishlist: NULL
@@ -7,10 +8,21 @@ params:
 ```{r Initialization, echo=FALSE, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(patchwork)
+library(knitr)
+#Testing code to see whether this thing actually works. 
+# df <- read.csv("2024_SS_EUSP.csv")
+# df[,c(14,12,3)] <- df[,c(14,12,3)] |> lapply(as.factor)
+# wishlist <- data.frame(
+#   "Variable"=c("Note.vor.Bonus", "Aufgabe.1", "Aufgabe.2", "Aufgabe.3", "Aufgabe.5", "Gesamt", "Note.nach.Bonus"),
+#   "Plot.Type"=c(NA,NA,NA,"Boxplot", "Density Plot", "Histogram", "Boxplot"),
+#   "Separator.Variable"=c(NA,NA,NA,"none", "TI", "Bonuspunkte", "TI"),
+#   "Exported.Statistics"=c("Min,Max", "Mean,SD,Min,Max","N",NA,NA,NA,NA)
+# )
 df <- params$df  #extract data frame from list.
 df <- as.data.frame(df)
 wishlist <- params$wishlist
 wishlist <- as.data.frame(wishlist)
+
 
 #ensure that DF names are syntactically equivalent.
 colnames(df) <- make.names(colnames(df))
@@ -23,9 +35,7 @@ plotter <- function(dat=NULL,axis1=NULL,filler=NULL,type=NULL){
       theme(panel.grid.major = element_blank(), 
             panel.background = element_blank(), 
             panel.grid.minor = element_blank(),
-            axis.line = element_line(colour = "black"),
-            axis.text.x = element_text(size = 12),
-            text = element_text(size = 12))
+            axis.line = element_line(colour = "black"),)
     #add fill
     #add geoms
     if ({{type}} == "Boxplot") {
@@ -42,7 +52,7 @@ plotter <- function(dat=NULL,axis1=NULL,filler=NULL,type=NULL){
       p <- p + aes(fill = .data[[{{filler}}]]) +
         scale_fill_manual(values = c("#59B4AB", "#D7B365"))
     }else{
-      p <- p + facet_wrap(vars({{filler}}))
+      p <- p + facet_wrap(as.formula(paste("~",{{filler}})))
     }
       }
     #add titles
@@ -58,13 +68,18 @@ layouter <- function(rows=NULL){
 }
 ```
 ## List of Exports
-The following items were selected for export\n.
+The following items were selected for export.
 ```{r Exportlist, echo=FALSE, warning=FALSE, message=FALSE}
-wishlist
+wl <- wishlist
+wl[is.na(wl)] <- ""
+kable(wl)
+rm(wl)
 ```
 
 ## Detailed Exports
-In this section, the dailed reports you chose will be shown.
+In this section, the detailed reports you chose will be shown.
+
+### Statistics Export
 ```{r Statistics Export Block, echo=FALSE, warning=FALSE, message=FALSE}
 #This whole block is conditional on the wishlist table.
 if(sum(is.na(wishlist$Exported.Statistics))!=nrow(wishlist)){
@@ -91,17 +106,17 @@ if(sum(is.na(wishlist$Exported.Statistics))!=nrow(wishlist)){
         if("N" %in% splitter){
           df[vars[i]] |> nrow()
           }else{NA})
-    insert <- c(vars[i], as.character(insert))
+    names(insert) <- NULL
     results <- rbind(results, insert) #bind results to the df as rows.
   }
-  
+  results <- results |> add_column(vars, .before=1)
   #output colnames
   colnames(results) <- c("Variable", "Mean", "Standard Deviation", "Min", "Max", "N")
   #filter out columns that only contain NAs for visual delight.
   #results <- results |> select_if(function(x) !all(is.na(x)))
-  results[results=="NA"] <- "not.selected"
+  results[is.na(results)] <- "not.selected"
   #output the table
-  results
+  knitr::kable(results)
 }
 ```
 ### Plot Exports
@@ -123,7 +138,7 @@ if(sum(is.na(wishlist$Plot.Type))!=nrow(wishlist)){
     }
     plots[[i]] <- p
   }
-  wrap_plots(plots)
+  wrap_plots(plots,widths = 4, heights = 2 )
   #result <- wrap_plots(plots,ncol = layouter(nrow(vars)))
   #result
 }else{
