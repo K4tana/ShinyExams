@@ -14,10 +14,9 @@ As of October 2024, only descriptive measures and three kinds of plots can be ex
 ## Planned updates
 
 - Docker Image, so R isn't even required on the machine. 
-- Full Tutorial for Shiny deployment. 
-- Delete Button for the Export List.
+- Full Tutorial for Shiny deployment in ReadMe. 
 - UI Changes: Make it prettier, make it more readable, make it FUN.
-- Potential to download and upload Export list as either JSON or csv.
+- Potential to download and upload export lists as either JSON or csv.
 
 ## Possible Updates
 - Support for logistic/choice exam types: Rasch Models, marking solved questions etc.

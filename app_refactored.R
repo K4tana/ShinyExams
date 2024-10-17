@@ -2,6 +2,7 @@
 library(shiny)
 library(shinydashboard)
 library(DT)
+library(fresh)
 #load data manipulation/plotting libraries
 library(ggplot2)
 library(rmarkdown)
@@ -10,11 +11,29 @@ library(rmarkdown)
 #We want Five pages: Start, where the process is described; Data Upload, where you can upload csv files; Plotting, where you can plot data uploaded and select variables to do so; Export, where you can choose what it is you want to export. 
 #we will explicitly not give the app the ability to bookmark stuff, as we want to purge everything after use.
 
+#THEME
+examtheme <- create_theme(
+  adminlte_color(light_blue = "green"),
+  adminlte_sidebar(width = "100 px",
+                   dark_bg = "green",
+                   dark_hover_bg = "orange",
+                   dark_color = "white",
+                   light_bg = "white",
+                   light_hover_bg = "black",
+                   light_color = "gray"),
+  adminlte_global(
+    content_bg = "#FCFCFC",
+    box_bg = "white",
+    info_box_bg = "white"
+  )
+)
+  
+#header and dashboard
 header <- dashboardHeader(title = "ShinyExams")
   
 sidebar <- dashboardSidebar(
     sidebarMenu(
-      menuItem("Start", tabName = "start", icon = icon("chart-bar")),
+      menuItem("Start", tabName = "start", icon = icon("circle-info")),
       menuItem("Data Upload", tabName = "upload", icon = icon("upload")),
       menuItem("Update Data", tabName = "update", icon=icon("edit")),
       menuItem("Plotting", tabName = "plotting", icon = icon("chart-bar")),
@@ -106,22 +125,27 @@ exportlayout <- tabItem(tabName = "export",
                           p("This page lets you select different analysis formats to download in a ", tags$i("PDF-File"),". Here's how you do this:",tags$ol(tags$li("Specify the desired output in the ", tags$i("Select Output Type-"), "Window and then select parameters in the field next to it."), tags$li("Click ", tags$i("Add new item to list-"),"Button, after which you will see an overview of your selections in the", tags$i("Data to Export-"), "field."),tags$li("Export the analysis results by clicking on the Export Button")))
                         )),
                         fluidRow(
-                          column(width = 4,
-                                 selectInput("desire_outcome", "Select Output Type", choices = c("Statistics", "Plot"), selected = NULL)),
-                          column(width = 4,
+                          column(width = 3,
+                                 selectInput("desire_outcome", "Select Output Type", choices = c("Statistics", "Plot"), selected = NULL),
                                  conditionalPanel("input.desire_outcome == 'Plot'", 
                                                   selectInput("xcol_output","X Variable", choices = NULL),
                                                   selectInput("plot_type_output", "Plot Type", choices = c("Boxplot", "Density Plot", "Histogram"), selected = NULL),
                                                   selectInput("fillcol_output", "Separator Variable", choices = NULL, selected = NULL)),
                                  conditionalPanel("input.desire_outcome == 'Statistics'",
-                                                  selectInput("stats_var", "Variable for Statistic", choices = NULL, selected = NULL), 
-                                                  checkboxGroupInput("stats", "Included Statistics", choices = c("Mean", "SD", "Min", "Max", "N"), selected = c("Mean", "SD", "Min", "Max", "N")))
-                        ),
-                        column(width = 4)),
-                        fluidRow(
-                          column(width = 12,
-                                 actionButton("add_item", "Add new item to export list")),
-                          p("")
+                                                  selectInput("stats_var", "Variable for Statistic", choices = NULL, selected = NULL),
+                                                  div(
+                                                    style="display: flex;justify-content:center;",
+                                                  checkboxGroupInput("stats", "Included Statistics", choices = c("Mean", "SD", "Min", "Max", "N"), selected = c("Mean", "SD", "Min", "Max", "N"))))),
+                          column(width = 3,
+                                 style="display:flex; flex-direction: column; justify-content:flex-end;",
+                                 div(
+                                   style= "margin-bottom: 15px; margin-top: 25px",
+                                   actionButton("add_item", HTML("<strong>Add new item</strong>"),class="btn-block")
+                                 ),
+                                 div(
+                                   actionButton("delete_item", HTML("<strong>Delete previous item</strong>"), class="btn-block")
+                                 )),
+                          column(width = 6)
                         ),
                         fluidRow(
                           column(width = 12,
@@ -134,13 +158,16 @@ exportlayout <- tabItem(tabName = "export",
                         fluidRow(
                           column(width = 12,
                                  p(""),
-                                 downloadButton('export_pdf','Export Selected Results to PDF')
+                                 downloadButton('export_pdf',HTML("<Strong>Export Selection</strong>"))
                           )
                         )
                         )
 
 #Compose the body from the individual layouts
-body <- dashboardBody(tags$head(
+body <- dashboardBody(
+  use_theme(examtheme),
+  #this kills padding that boxes somehow have.
+  tags$head(
   tags$style(
     HTML(".col-sm-6{padding-left: 0px;}")
     )),
@@ -241,15 +268,16 @@ server <- function(input, output, session){
   })}})
   
   # OUTPUT FUNCTION: REACTIVE UI TO ACCOMMODATE NEW COLUMN NAMES
-  output$column_names_ui <- renderUI({
+  output$column_names_ui <- 
+    renderUI({
     req(input$file1)
     df <- data()
     lapply(names(df), function(col) {
       textInput(paste0("col_", col), paste("Rename Column:", col), value = col)
     })})
-  
   # OUTPUT FUNCTION: REACTIVE UI TO ACCOMMODATE NEW COLUMN TYPES
-  output$column_types_ui <- renderUI({
+  output$column_types_ui <- 
+    renderUI({
     req(input$file1)
     df <- data()
     lapply(names(df), function(col) {
@@ -267,7 +295,7 @@ server <- function(input, output, session){
                   choices = c("numeric", "factor", "character"), 
                   selected = current_type)
     })
-  })
+    })
   
   # EVENT LISTENER THAT CHECKS FOR DATA TYPE UPDATES
   observeEvent(input$update_names_types, {
@@ -367,13 +395,27 @@ server <- function(input, output, session){
       }
     colnames(helper) <- c("Variable", "Plot Type", "Separator Variable", "Exported Statistics")
     items <- rbind(items,helper)
+    
+    #catching "none"-entries before they happen
+    if((input$desire_outcome=="Plot" && input$xcol_output=="none")|(input$desire_outcome=="Statistics"&& input$stats_var=="none")){
+      showNotification("Please select a variable to export before continuing.", closeButton = TRUE)
+    }else{
     export_items(items)
+    }
   })
-
+  # EVENT LISTENER THAT DELETES THE PREVIOUS ENTRY IN THE EXPORT LIST
+  observeEvent(input$delete_item, {
+    items <- export_items()
+    if(is.null(items)==T){
+      showNotification("No items available to delete. Add an item to the export list first.", closeButton = TRUE)
+    }else{
+      items <- items[-nrow(items),]
+      export_items(items)
+    }
+  })
   # OUTPUT: RENDERS THE LIST THAT THE USER HAS SELECTED AND HANDLES
   output$selected_items_ui <- renderDT({
     items <- export_items()
-    #This ensures that it doesn't do anything wonky unless there's data in the table.
     datatable(items)
   })
   
@@ -385,12 +427,14 @@ server <- function(input, output, session){
       file.copy("report.Rmd", report_path, overwrite = TRUE)
       params <- list(df=updated_data(),
                      wishlist= export_items())
+      id <- showNotification("Generating report....")
       rendered_report <- rmarkdown::render(report_path,
                     params = params,
                     output_format = "pdf_document",
                     output_file = "ShinyExams-Report.pdf",
                     envir = new.env(parent = globalenv()))
       file.copy(rendered_report, file)
+      on.exit(removeNotification(id))
     }
   )
 }
